@@ -486,6 +486,136 @@ def trip_entry():
 
 
 # ---------------------------------------------------------------------------
+# Read-only "all records" view (for showing the client every trip at a glance)
+# ---------------------------------------------------------------------------
+# Columns shown in the all-records table: (header label, trip field key).
+VIEW_COLUMNS = [
+    ("Trip Id", "trip_id"),
+    ("Rider Id", "rider_external_id"),
+    ("Rider", "rider_name"),
+    ("Agency", "agency"),
+    ("Route", "route"),
+    ("Origin", "origin_stop"),
+    ("Destination", "destination_stop"),
+    ("Departure (UTC)", "scheduled_departure_utc"),
+    ("Delay (min)", "delay_minutes"),
+    ("Status", "status"),
+    ("Fare", "fare_cents"),
+    ("Payment", "payment_method"),
+]
+
+VIEW_PAGE = """
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SMTCD Trips — All Records</title>
+<style>
+  :root { --navy:#00355C; --blue:#00529B; --red:#E2383F; --line:#E2E8F0; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,"Segoe UI",Helvetica,Arial,sans-serif;
+         background:#F4F6F8; color:#1F2937; }
+  header { background:linear-gradient(180deg,var(--blue) 0%,var(--navy) 100%);
+           color:#fff; padding:18px 24px; border-bottom:3px solid var(--red); }
+  header h1 { margin:0; font-size:18px; letter-spacing:.02em; }
+  header p { margin:4px 0 0; font-size:12.5px; opacity:.9; }
+  main { max-width:1280px; margin:24px auto; padding:0 16px; }
+  .meta { display:flex; align-items:baseline; gap:12px; margin-bottom:14px; flex-wrap:wrap; }
+  .count { font-size:15px; font-weight:700; color:var(--navy); }
+  .count span { color:var(--blue); }
+  .sub { font-size:12.5px; color:#6B7280; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px;
+          overflow:hidden; box-shadow:0 1px 4px rgba(0,0,0,.06); }
+  .tablewrap { overflow-x:auto; }
+  table { border-collapse:collapse; width:100%; font-size:13px; white-space:nowrap; }
+  thead th { background:#F1F5F9; color:var(--navy); text-align:left;
+             padding:11px 14px; border-bottom:2px solid var(--line);
+             position:sticky; top:0; font-weight:700; }
+  tbody td { padding:10px 14px; border-bottom:1px solid var(--line); }
+  tbody tr:nth-child(even) { background:#FAFBFC; }
+  tbody tr:hover { background:#EFF6FF; }
+  .pill { display:inline-block; padding:2px 10px; border-radius:999px;
+          font-size:11.5px; font-weight:700; }
+  .s-Completed { background:#ECFDF5; color:#065F46; }
+  .s-Delayed   { background:#FFFBEB; color:#92400E; }
+  .s-Cancelled { background:#FEF2F2; color:#991B1B; }
+  .s-No.Show, .s-NoShow { background:#F3F4F6; color:#374151; }
+  .s-Refunded  { background:#EEF2FF; color:#3730A3; }
+  .muted { color:#9CA3AF; }
+  footer { max-width:1280px; margin:14px auto 32px; padding:0 16px;
+           font-size:12px; color:#6B7280; }
+  code { background:#F1F5F9; padding:1px 5px; border-radius:4px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>SMTCD Trips — All Records</h1>
+  <p>Live read-only view of every trip in the SamTrans Trips API &middot; source of the Salesforce SMTCD Trip external object</p>
+</header>
+<main>
+  <div class="meta">
+    <div class="count"><span>{{ total }}</span> trip record{{ '' if total == 1 else 's' }}</div>
+    <div class="sub">Pulled live from the trips store &middot; ordered by most recent departure</div>
+  </div>
+  <div class="card">
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>{% for label, key in columns %}<th>{{ label }}</th>{% endfor %}</tr>
+        </thead>
+        <tbody>
+          {% for t in trips %}
+          <tr>
+            {% for label, key in columns %}
+              {% set val = t.get(key) %}
+              {% if key == 'status' and val %}
+                <td><span class="pill s-{{ val|replace(' ','') }}">{{ val }}</span></td>
+              {% elif key == 'fare_cents' and val is not none %}
+                <td>${{ '%.2f'|format(val / 100.0) }}</td>
+              {% elif val is none or val == '' %}
+                <td class="muted">&mdash;</td>
+              {% else %}
+                <td>{{ val }}</td>
+              {% endif %}
+            {% endfor %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</main>
+<footer>
+  Read-only. To add a trip use <code>/trip-entry</code>. JSON for the same data: <code>/trips</code>.
+</footer>
+</body>
+</html>
+"""
+
+
+@app.get("/trips-view")
+def trips_view():
+    """Read-only HTML table of all trips (newest first). For client demos."""
+    where, params = build_filtered_query()
+    conn = get_db()
+    try:
+        total = conn.execute(
+            f"SELECT COUNT(*) AS n FROM trips{where}", params
+        ).fetchone()["n"]
+        rows = conn.execute(
+            f"SELECT * FROM trips{where} ORDER BY scheduled_departure_utc DESC",
+            params,
+        ).fetchall()
+    finally:
+        conn.close()
+    trips = [row_to_trip(r) for r in rows]
+    return render_template_string(
+        VIEW_PAGE, columns=VIEW_COLUMNS, trips=trips, total=total
+    )
+
+
+# ---------------------------------------------------------------------------
 # Error handlers
 # ---------------------------------------------------------------------------
 @app.errorhandler(400)
