@@ -510,7 +510,7 @@ VIEW_PAGE = """
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>SMTCD Trips — All Records</title>
+<title>SMTCD Trips — Master Records</title>
 <style>
   :root { --navy:#00355C; --blue:#00529B; --red:#E2383F; --line:#E2E8F0; }
   * { box-sizing: border-box; }
@@ -550,7 +550,7 @@ VIEW_PAGE = """
 </head>
 <body>
 <header>
-  <h1>SMTCD Trips — All Records</h1>
+  <h1>SMTCD Trips — Master Records</h1>
   <p>Live read-only view of every trip in the SamTrans Trips API &middot; source of the Salesforce SMTCD Trip external object</p>
 </header>
 <main>
